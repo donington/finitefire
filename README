@@ -1,0 +1,15 @@
+
+Finite Fire Mod for Minecraft
+by donington
+
+
+This mod changes the way fire works when gamerule doFireTick is set to true.
+
+To enable the behavior of this mod, type the following as OP or at the server console:
+  /gamerule doFireTick true
+
+Set the rule back to false to revert back to normal fire behavior.
+
+
+When doFireTick is set to true, fire spread will be disabled but fire will still extinguish like normal.
+
