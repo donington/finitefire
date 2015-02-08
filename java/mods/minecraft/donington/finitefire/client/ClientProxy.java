@@ -7,12 +7,10 @@ import net.minecraft.client.Minecraft;
 public class ClientProxy extends CommonProxy {
 
 	@Override
-	public void init() {
-		super.init();
-
-		// registerBlockIcons() is not called properly, invoking manually
-		ModFiniteFire.info("registering BlockFiniteFire icons");
-		ModFiniteFire.blockFiniteFire.registerBlockIcons(Minecraft.getMinecraft().getTextureMapBlocks());
+	public void preInit() {
+//		ModFiniteFire.warning("on client;  ignoring");
+		ModFiniteFire.warning("temporary allow on client!");
+		super.preInit();
 	}
 
 }

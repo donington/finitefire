@@ -1,28 +1,33 @@
 package mods.minecraft.donington.finitefire;
 
-import static net.minecraftforge.common.util.ForgeDirection.DOWN;
-import static net.minecraftforge.common.util.ForgeDirection.EAST;
-import static net.minecraftforge.common.util.ForgeDirection.NORTH;
-import static net.minecraftforge.common.util.ForgeDirection.SOUTH;
-import static net.minecraftforge.common.util.ForgeDirection.UP;
-import static net.minecraftforge.common.util.ForgeDirection.WEST;
+import static net.minecraft.util.EnumFacing.NORTH;
+import static net.minecraft.util.EnumFacing.SOUTH;
+import static net.minecraft.util.EnumFacing.EAST;
+import static net.minecraft.util.EnumFacing.WEST;
+import static net.minecraft.util.EnumFacing.UP;
+import static net.minecraft.util.EnumFacing.DOWN;
 
 import java.util.Random;
 
 import net.minecraft.block.BlockFire;
+import net.minecraft.block.state.IBlockState;
+import net.minecraft.util.BlockPos;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.world.World;
 
 public class BlockFiniteFire extends BlockFire {
 	// mimic vanilla timing for fire extinguish
-	private static final int metaBurnMin = 3;
-	private static final int metaBurnMax = 15;
+	private static final int fireAgeMin = 3;
+	private static final int fireAgeMax = 15;
+    private static final EnumFacing[] direction = EnumFacing.values();
+
 
 
 	public BlockFiniteFire() {
 		super();
-		this.setBlockName("finiteFire");
+		this.setUnlocalizedName("finiteFire");
 		//this.setBlockTextureName("minecraft:fire"); // glitches
-		this.setBlockTextureName("fire"); // works
+		//this.setBlockTextureName("fire"); // works
 		this.setHardness(0.0F);
 		this.setLightLevel(1.0F);
 		this.setStepSound(soundTypeWood);
@@ -30,52 +35,61 @@ public class BlockFiniteFire extends BlockFire {
 	}
 
 
-    public void updateTick(World world, int posX, int posY, int posZ, Random rng) {
+    public void updateTick(World world, BlockPos pos, IBlockState state, Random rng) {
+    	System.out.printf("BlockFiniteFire::updateTick()");
+
     	// do vanilla fire behavior if doFireTick is true
         if ( world.getGameRules().getGameRuleBooleanValue("doFireTick") ) {
-        	super.updateTick(world, posX, posY, posZ, rng);
+        	super.updateTick(world, pos, state, rng);
         	return;
         }
 
         // check if the block below is a fire source (netherrack etc)
-        if ( world.getBlock(posX, posY-1, posZ).isFireSource(world, posX, posY - 1, posZ, UP) )
+        if ( world.getBlockState(pos.down()).getBlock().isFireSource(world, pos, UP) )
         	return;  // just keep burning
 
+        // douse fire in rain
+        if ( world.isRaining() && this.canDie(world, pos) ) {
+        	world.setBlockToAir(pos);
+        	return;
+    	}
+        
         // update fire metadata
-        int meta = world.getBlockMetadata(posX, posY, posZ);
-        if ( meta < metaBurnMax ) {
-        	//world.notifyBlocksOfNeighborChange(posX, posY, posZ, this);
-            world.setBlockMetadataWithNotify(posX, posY, posZ, meta + rng.nextInt(3) / 2, 4);
+        int age = ((Integer)state.getValue(AGE)).intValue();
+        if ( age < fireAgeMax ) {
+            state = state.withProperty(AGE, Integer.valueOf(age + rng.nextInt(3) / 2));
+            world.setBlockState(pos, state, 4);
         }
-    	//System.out.printf("BlockFiniteFire meta := %d\n", meta);
+    	System.out.printf("BlockFiniteFire age := %d\n", age);
 
         // schedule update in the future
-        world.scheduleBlockUpdate(posX, posY, posZ, this, this.tickRate(world) + rng.nextInt(10));
+        world.scheduleUpdate(pos, this, this.tickRate(world) + rng.nextInt(10));
 
         // extinguish fire if nothing nearby is considered flammable
-        if ( !this.isNeighborFlammable(world, posX, posY, posZ) ) {
-            if (!World.doesBlockHaveSolidTopSurface(world, posX, posY-1, posZ) || meta > metaBurnMin) {
-                world.setBlockToAir(posX, posY, posZ);
+        if ( !this.isNeighborFlammable(world, pos) ) {
+            if (!World.doesBlockHaveSolidTopSurface(world, pos.down()) || age > fireAgeMin) {
+                world.setBlockToAir(pos);
                 return;
             }
         }
 
-        // extinguish fire if metadata has reached metaBurnMax and the rng gods align
-        if ( meta == metaBurnMax && rng.nextInt(4) == 0) {
-        	world.setBlockToAir(posX, posY, posZ);
+        // try to extinguish fire if age has reached fireAgeMax
+        if ( age == fireAgeMax && rng.nextInt(4) == 0) {
+        	world.setBlockToAir(pos);
         }
     }
 
 
     /** test surrounding blocks for flammability */
-    private boolean isNeighborFlammable(World world, int posX, int posY, int posZ) {
-        return
-        		canCatchFire(world,  posX,    posY,    posZ+1,  NORTH) ||
-                canCatchFire(world,  posX,    posY,    posZ-1,  SOUTH) ||
-                canCatchFire(world,  posX-1,  posY,    posZ,    EAST ) ||
-        		canCatchFire(world,  posX+1,  posY,    posZ,    WEST ) ||
-        		canCatchFire(world,  posX,    posY-1,  posZ,    UP   ) ||
-        		canCatchFire(world,  posX,    posY+1,  posZ,    DOWN );
+    private boolean isNeighborFlammable(World world, BlockPos pos) {
+        for (int i = 0; i < direction.length; ++i) {
+            EnumFacing facing = direction[i];
+
+            if (this.canCatchFire(world, pos.offset(facing), facing.getOpposite()))
+                return true;
+        }
+
+        return false;
     }
 
 }
